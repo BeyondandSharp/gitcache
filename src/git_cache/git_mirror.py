@@ -45,6 +45,9 @@ LOG = logging.getLogger(__name__)
 #                                  <proto>      [user@]  <host>  [:port]   <path>
 RE_URL_WITH_PROTO = re.compile(r"([a-zA-Z]+)://([^@]+@)?([^:/]+)(:[0-9]+)?/(.*)")
 
+# Pattern to match ssh, git, http[s] and ftp[s] but without sub dir:
+RE_URL_WITHOUT_SUBDIR = re.compile(r"([a-zA-Z]+)://([^@]+@)?([^:/]+)/(.*)")
+
 # Pattern to match scp-like syntax:  [user@]  <host>       <path>
 RE_URL_WITHOUT_PROTO = re.compile(r"([^@]+@)?([^:/\\]{2,}):(.*)")
 
@@ -526,6 +529,16 @@ class GitMirror:
             if path.endswith(".git"):
                 path = path[:-4]
             return f"{match.group(1)}://{match.group(2) or ''}{match.group(3)}{match.group(4) or ''}/{path}"
+        
+        elif match := RE_URL_WITHOUT_SUBDIR.match(url):
+            path = posixpath.normpath(match.group(3) + "/" + match.group(4))
+            while path.startswith("../"):
+                path = path[3:]
+            while path.endswith("/"):
+                path = path[:-1]
+            if path.endswith(".git"):
+                path = path[:-4]
+            return f"{match.group(1)}://{match.group(2) or ''}{path}"
 
         if match := RE_URL_WITHOUT_PROTO.match(url):
             path = posixpath.normpath(match.group(3))
@@ -562,6 +575,12 @@ class GitMirror:
             if port is not None:
                 sub_dir += port.replace(":", "_")
             path = posixpath.normpath(match.group(5))
+            while path.startswith("../"):
+                path = path[3:]
+            sub_dir += "/" + posixpath.normpath(path)
+        
+        elif match := RE_URL_WITHOUT_SUBDIR.match(url):
+            path = posixpath.normpath(match.group(3) + "/" + match.group(4))
             while path.startswith("../"):
                 path = path[3:]
             sub_dir += "/" + posixpath.normpath(path)
